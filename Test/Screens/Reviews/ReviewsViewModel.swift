@@ -52,6 +52,10 @@ private extension ReviewsViewModel {
             state.items += reviews.items.map(makeReviewItem)
             state.offset += state.limit
             state.shouldLoad = state.offset < reviews.count
+            
+            if state.shouldLoad == false {
+                state.items.append(makeReviewsCountItem(reviews.count))
+            }
         } catch {
             state.shouldLoad = true
         }
@@ -77,6 +81,7 @@ private extension ReviewsViewModel {
 private extension ReviewsViewModel {
 
     typealias ReviewItem = ReviewCellConfig
+    typealias ReviewsCountItem = ReviewsCountCellConfig
 
     func makeReviewItem(_ review: Review) -> ReviewItem {
         let username = (review.firstName + " " + review.lastName).attributed(font: .username)
@@ -90,6 +95,17 @@ private extension ReviewsViewModel {
             created: created,
             onTapShowMore: showMoreReview
         )
+        return item
+    }
+    
+    func makeReviewsCountItem(_ count: Int) -> ReviewsCountItem {
+        let reviewsCountText = String(
+            format: NSLocalizedString("Reviews", comment: "Number of reviews"),
+            count
+        )
+        .attributed(font: .reviewCount, color: .reviewCount)
+        
+        let item = ReviewsCountItem(reviewsCountText: reviewsCountText)
         return item
     }
 

@@ -8,17 +8,20 @@ final class ReviewsViewModel: NSObject {
 
     private var state: State
     private let reviewsProvider: ReviewsProvider
+    private let imagesProvider: ImagesProvider
     private let ratingRenderer: RatingRenderer
     private let decoder: JSONDecoder
 
     init(
         state: State = State(),
         reviewsProvider: ReviewsProvider = ReviewsProvider(),
+        imagesProvider: ImagesProvider = ImagesProvider(),
         ratingRenderer: RatingRenderer = RatingRenderer(),
         decoder: JSONDecoder = JSONDecoder()
     ) {
         self.state = state
         self.reviewsProvider = reviewsProvider
+        self.imagesProvider = imagesProvider
         self.ratingRenderer = ratingRenderer
         self.decoder = decoder
     }
@@ -35,7 +38,10 @@ extension ReviewsViewModel {
     func getReviews() {
         guard state.shouldLoad else { return }
         state.shouldLoad = false
-        reviewsProvider.getReviews(offset: state.offset, completion: gotReviews)
+        reviewsProvider.getReviews(
+            offset: state.offset,
+            completion: { [weak self] reviews in self?.gotReviews(reviews) }
+        )
     }
 
 }
@@ -49,13 +55,44 @@ private extension ReviewsViewModel {
         do {
             let data = try result.get()
             let reviews = try decoder.decode(Reviews.self, from: data)
-            state.items += reviews.items.map(makeReviewItem)
+            var avatarUrls: [UUID: String?] = [:]
+            let newItems = reviews.items.map { review in
+                let item = makeReviewItem(review)
+                avatarUrls[item.id] = review.avatarUrl
+                return item
+            }
+            state.items += newItems
+            avatarUrls.forEach { loadAvatarImage(urlString: $0.value, for: $0.key) }
             state.offset += state.limit
             state.shouldLoad = state.offset < reviews.count
+            
+            if state.shouldLoad == false {
+                state.items.append(makeReviewsCountItem(reviews.count))
+            }
         } catch {
             state.shouldLoad = true
         }
         onStateChange?(state)
+    }
+    
+    private func loadAvatarImage(urlString: String?, for reviewId: UUID) {
+        imagesProvider.getImageAndCache(urlString: urlString) { [weak self] result in
+            guard
+                let self,
+                let index = state.items.firstIndex(where: { ($0 as? ReviewItem)?.id == reviewId }),
+                var item = state.items[index] as? ReviewItem
+            else { return }
+            
+            switch result {
+            case .success(let image):
+                item.avatarImageView = image
+            case .failure:
+                item.avatarImageView = UIImage(resource: .avatarPlaceholder)
+            }
+            
+            self.state.items[index] = item
+            self.onStateChange?(self.state)
+        }
     }
 
     /// Метод, вызываемый при нажатии на кнопку "Показать полностью...".
@@ -77,15 +114,33 @@ private extension ReviewsViewModel {
 private extension ReviewsViewModel {
 
     typealias ReviewItem = ReviewCellConfig
+    typealias ReviewsCountItem = ReviewsCountCellConfig
 
     func makeReviewItem(_ review: Review) -> ReviewItem {
+        let avatarPlaceholder = UIImage(resource: .avatarPlaceholder)
+        let username = (review.firstName + " " + review.lastName).attributed(font: .username)
+        let ratingImageView = ratingRenderer.ratingImage(review.rating)
         let reviewText = review.text.attributed(font: .text)
         let created = review.created.attributed(font: .created, color: .created)
         let item = ReviewItem(
+            avatarImageView: avatarPlaceholder,
+            username: username,
+            ratingImageView: ratingImageView,
             reviewText: reviewText,
             created: created,
-            onTapShowMore: showMoreReview
+            onTapShowMore: { [weak self] id in self?.showMoreReview(with: id) }
         )
+        return item
+    }
+    
+    func makeReviewsCountItem(_ count: Int) -> ReviewsCountItem {
+        let reviewsCountText = String(
+            format: NSLocalizedString("Reviews", comment: "Number of reviews"),
+            count
+        )
+        .attributed(font: .reviewCount, color: .reviewCount)
+        
+        let item = ReviewsCountItem(reviewsCountText: reviewsCountText)
         return item
     }
 

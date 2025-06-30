@@ -28,15 +28,19 @@ extension ReviewsProvider {
         guard let url = bundle.url(forResource: "getReviews.response", withExtension: "json") else {
             return completion(.failure(.badURL))
         }
-
-        // Симулируем сетевой запрос - не менять
-        usleep(.random(in: 100_000...1_000_000))
-
-        do {
-            let data = try Data(contentsOf: url)
-            completion(.success(data))
-        } catch {
-            completion(.failure(.badData(error)))
+        
+        DispatchQueue.global().async {
+            // Симулируем сетевой запрос - не менять
+            usleep(.random(in: 100_000...1_000_000))
+            
+            do {
+                let data = try Data(contentsOf: url)
+                DispatchQueue.main.async {
+                    completion(.success(data))
+                }
+            } catch {
+                completion(.failure(.badData(error)))
+            }
         }
     }
 

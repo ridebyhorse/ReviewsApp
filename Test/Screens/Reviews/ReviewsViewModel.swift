@@ -35,7 +35,10 @@ extension ReviewsViewModel {
     func getReviews() {
         guard state.shouldLoad else { return }
         state.shouldLoad = false
-        reviewsProvider.getReviews(offset: state.offset, completion: gotReviews)
+        reviewsProvider.getReviews(
+            offset: state.offset,
+            completion: { [weak self] reviews in self?.gotReviews(reviews) }
+        )
     }
 
 }
@@ -93,7 +96,7 @@ private extension ReviewsViewModel {
             ratingImageView: ratingImageView,
             reviewText: reviewText,
             created: created,
-            onTapShowMore: showMoreReview
+            onTapShowMore: { [weak self] id in self?.showMoreReview(with: id) }
         )
         return item
     }

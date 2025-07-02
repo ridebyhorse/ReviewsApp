@@ -56,13 +56,19 @@ private extension ReviewsViewModel {
             let data = try result.get()
             let reviews = try decoder.decode(Reviews.self, from: data)
             var avatarUrls: [UUID: String?] = [:]
+            var photoUrls: [UUID: [String]] = [:]
             let newItems = reviews.items.map { review in
                 let item = makeReviewItem(review)
                 avatarUrls[item.id] = review.avatarUrl
+                photoUrls[item.id] = review.photoUrls
                 return item
             }
             state.items += newItems
-            avatarUrls.forEach { loadAvatarImage(urlString: $0.value, for: $0.key) }
+            avatarUrls.forEach { avatarUrl in
+                loadAvatarImage(urlString: avatarUrl.value, for: avatarUrl.key) { [weak self] in
+                    self?.loadReviewPhotos(urls: photoUrls[avatarUrl.key] ?? [], for: avatarUrl.key)
+                }
+            }
             state.offset += state.limit
             state.shouldLoad = state.offset < reviews.count
             
@@ -75,7 +81,7 @@ private extension ReviewsViewModel {
         onStateChange?(state)
     }
     
-    private func loadAvatarImage(urlString: String?, for reviewId: UUID) {
+    private func loadAvatarImage(urlString: String?, for reviewId: UUID, completion: (() -> Void)? = nil) {
         imagesProvider.getImageAndCache(urlString: urlString) { [weak self] result in
             guard
                 let self,
@@ -90,8 +96,33 @@ private extension ReviewsViewModel {
                 item.avatarImageView = UIImage(resource: .avatarPlaceholder)
             }
             
-            self.state.items[index] = item
-            self.onStateChange?(self.state)
+            DispatchQueue.main.async {
+                self.state.items[index] = item
+                self.onStateChange?(self.state)
+                completion?()
+            }
+        }
+    }
+    
+    private func loadReviewPhotos(urls: [String], for reviewId: UUID) {
+        imagesProvider.getImagesAndCache(urls: urls) { [weak self] result in
+            guard
+                let self,
+                let index = state.items.firstIndex(where: { ($0 as? ReviewItem)?.id == reviewId }),
+                var item = state.items[index] as? ReviewItem
+            else { return }
+            
+            switch result {
+            case .success(let photos):
+                item.photos = photos
+            case .failure:
+                item.photos = []
+            }
+            
+            DispatchQueue.main.async {
+                self.state.items[index] = item
+                self.onStateChange?(self.state)
+            }
         }
     }
 
@@ -126,6 +157,7 @@ private extension ReviewsViewModel {
             avatarImageView: avatarPlaceholder,
             username: username,
             ratingImageView: ratingImageView,
+            photos: [],
             reviewText: reviewText,
             created: created,
             onTapShowMore: { [weak self] id in self?.showMoreReview(with: id) }

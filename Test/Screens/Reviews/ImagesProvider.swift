@@ -23,6 +23,7 @@ final class ImagesProvider {
 extension ImagesProvider {
 
     typealias GetImageResult = Result<UIImage, GetImageError>
+    typealias GetImagesResult = Result<[UIImage], GetImageError>
 
     enum GetImageError: Error {
 
@@ -62,6 +63,39 @@ extension ImagesProvider {
             }
         }
         .resume()
+    }
+    
+    func getImagesAndCache(urls: [String], completion: @escaping (GetImagesResult) -> Void) {
+        guard !urls.isEmpty else {
+            return completion(.success([]))
+        }
+        
+        var images = [UIImage]()
+        var errors = [GetImageError]()
+        
+        let dispatchGroup = DispatchGroup()
+        
+        for urlString in urls {
+            dispatchGroup.enter()
+            
+            getImageAndCache(urlString: urlString) { result in
+                switch result {
+                case .success(let image):
+                    images.append(image)
+                case .failure(let error):
+                    errors.append(error)
+                }
+                dispatchGroup.leave()
+            }
+        }
+        
+        dispatchGroup.notify(queue: .main) {
+            if !errors.isEmpty {
+                completion(.failure(errors.first!))
+            } else {
+                completion(.success(images))
+            }
+        }
     }
 
 }

@@ -35,6 +35,7 @@ private extension ReviewsView {
         tableView.allowsSelection = false
         tableView.register(ReviewCell.self, forCellReuseIdentifier: ReviewCellConfig.reuseId)
         tableView.register(ReviewsCountCell.self, forCellReuseIdentifier: ReviewsCountCellConfig.reuseId)
+        tableView.refreshControl = UIRefreshControl()
     }
 
 }

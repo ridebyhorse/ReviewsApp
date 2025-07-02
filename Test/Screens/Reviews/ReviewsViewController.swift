@@ -24,6 +24,10 @@ final class ReviewsViewController: UIViewController {
         setupViewModel()
         viewModel.getReviews()
     }
+    
+    @objc private func refreshData() {
+        viewModel.beginRefresh()
+    }
 
 }
 
@@ -39,9 +43,20 @@ private extension ReviewsViewController {
     }
 
     func setupViewModel() {
-        viewModel.onStateChange = { [weak self] _ in
+        viewModel.onStateChange = { [weak self] state in
             self?.reviewsView.tableView.reloadData()
+            if !state.isRefreshing {
+                DispatchQueue.main.async { [weak self] in
+                    self?.reviewsView.tableView.refreshControl?.endRefreshing()
+                }
+            }
         }
+        
+        reviewsView.tableView.refreshControl?.addTarget(
+            self,
+            action: #selector(refreshData),
+            for: .valueChanged
+        )
     }
 
 }

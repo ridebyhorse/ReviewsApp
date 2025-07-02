@@ -52,6 +52,12 @@ private extension ReviewsViewModel {
 
     /// Метод обработки получения отзывов.
     func gotReviews(_ result: ReviewsProvider.GetReviewsResult) {
+        defer {
+            if state.isRefreshing {
+                endRefresh()
+            }
+        }
+        
         do {
             let data = try result.get()
             let reviews = try decoder.decode(Reviews.self, from: data)
@@ -78,6 +84,7 @@ private extension ReviewsViewModel {
         } catch {
             state.shouldLoad = true
         }
+        
         onStateChange?(state)
     }
     
@@ -226,4 +233,24 @@ extension ReviewsViewModel: UITableViewDelegate {
         return remainingDistance <= triggerDistance
     }
 
+}
+
+extension ReviewsViewModel {
+    func beginRefresh() {
+        state.items = []
+        state.offset = 0
+        state.shouldLoad = true
+        state.isRefreshing = true
+        
+        onStateChange?(state)
+        getReviews()
+    }
+    
+    func endRefresh() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            state.isRefreshing = false
+            onStateChange?(state)
+        }
+    }
 }
